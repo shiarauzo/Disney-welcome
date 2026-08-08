@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0616" />
+    <meta name="description" content="Dibuja trazos brillantes con destellos en el aire usando tu dedo índice. WebGL + shaders, homenaje fan al bumper de la varita mágica." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%A8%3C/text%3E%3C/svg%3E" />
+    <title>✨ Finger Sparkle — dibuja con tu dedo</title>
+  </head>
+  <body>
+    <!-- Hidden source video: the webcam feed MediaPipe analyzes and the
+         composite shader samples as a texture. Never shown directly. -->
+    <video id="input-video" playsinline muted autoplay></video>
+
+    <!-- Three.js renders here, full screen. -->
+    <canvas id="stage"></canvas>
+
+    <!-- UI overlay (buttons, hints, status). Populated by src/ui.js. -->
+    <div id="ui"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
