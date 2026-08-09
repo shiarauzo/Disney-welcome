@@ -34,8 +34,8 @@ class App {
     this.drawMode = CONFIG.hand.requirePointingGesture ? 'gesture' : 'always'
     this.spaceHeld = false
     this.penDown = false
-    this._downFrames = 0
-    this._upFrames = 0
+    this._downTime = 0
+    this._upTime = 0
     this.cover = { kx: 1, ky: 1, ox: 0, oy: 0 }
     this.mirror = true
     this.running = false
@@ -151,8 +151,8 @@ class App {
     const idx = this.drawModes.indexOf(this.drawMode)
     this.drawMode = this.drawModes[(idx + 1) % this.drawModes.length]
     // Reset hysteresis so the new mode's threshold starts clean.
-    this._downFrames = 0
-    this._upFrames = 0
+    this._downTime = 0
+    this._upTime = 0
     this.ui.setDrawMode(this.drawMode)
   }
 
@@ -217,7 +217,7 @@ class App {
     // pen down forever in "held" mode. Reset on focus loss / tab hide.
     const releasePen = () => {
       this.spaceHeld = false
-      this._downFrames = 0
+      this._downTime = 0
     }
     window.addEventListener('blur', releasePen)
     document.addEventListener('visibilitychange', () => {
@@ -263,22 +263,28 @@ class App {
 
   /* ---- main loop --------------------------------------------------------- */
 
-  _computePenDown(hand) {
+  _computePenDown(hand, dt) {
     let desired
     if (this.drawMode === 'always') desired = hand.present
     else if (this.drawMode === 'held') desired = hand.present && this.spaceHeld
     else desired = hand.present && hand.pointing
 
-    // Hysteresis to avoid flicker at the gesture threshold.
-    const need = this.drawMode === 'gesture' ? 3 : 1
+    // Asymmetric hysteresis in SECONDS (not frames): rAF may run at 120 Hz
+    // while detections only arrive at ~30 fps, so a frame count would mean
+    // different things per display. Quick to start, slow to lift, so a frame
+    // that misreads the gesture doesn't chop the stroke in two. Only the
+    // gesture mode needs it — 'held' and 'always' are already deterministic.
+    const gesture = this.drawMode === 'gesture'
+    const needDown = gesture ? CONFIG.hand.penDownSeconds : 0
+    const needUp = gesture ? CONFIG.hand.penUpSeconds : 0
     if (desired) {
-      this._downFrames++
-      this._upFrames = 0
-      if (this._downFrames >= need) this.penDown = true
+      this._downTime += dt
+      this._upTime = 0
+      if (this._downTime >= needDown) this.penDown = true
     } else {
-      this._upFrames++
-      this._downFrames = 0
-      if (this._upFrames >= need) this.penDown = false
+      this._upTime += dt
+      this._downTime = 0
+      if (this._upTime >= needUp) this.penDown = false
     }
     return this.penDown
   }
@@ -295,14 +301,14 @@ class App {
       }
 
       const hand = this.tracker.detect(this.video, now)
-      const isDown = this._computePenDown(hand)
+      const isDown = this._computePenDown(hand, dt)
 
       let tipClip = null
       if (isDown && hand.tip) {
         tipClip = fingertipToClip(hand.tip[0], hand.tip[1], this.cover, this.mirror)
       }
 
-      const { segments, tip } = this.sampler.update(tipClip)
+      const { segments, tip } = this.sampler.update(tipClip, dt)
       this.pipeline.setSegments(segments)
 
       // Emit sparkles along accepted samples (fewer if reduced-motion).
