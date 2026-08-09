@@ -1,19 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { PALETTE } from './config.js'
 
-const DRAW_MODE_LABELS = {
-  gesture: 'Gesto ☝️',
-  held: 'Mantener ␣',
-  always: 'Siempre'
-}
-
 const rgbCss = (c) =>
   `rgb(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)})`
 
 /**
- * All DOM UI: the intro/error overlay, the control bar, the HUD chips and the
- * keyboard-hint card. Communicates via the `handlers` callbacks; the app owns
- * the state and calls the setters back.
+ * All DOM UI: the intro/error overlay and the control bar. Communicates via the
+ * `handlers` callbacks; the app owns the state and calls the setters back.
  */
 export class UI {
   /**
@@ -43,24 +36,6 @@ export class UI {
     this.overlay.querySelector('.cta').addEventListener('click', () => this.h.onStart())
     this.root.appendChild(this.overlay)
 
-    // HUD.
-    this.hud = el('div', 'hud')
-    this.statusChip = el('div', 'chip')
-    this.statusChip.textContent = 'Listo'
-    this.hud.appendChild(this.statusChip)
-    this.root.appendChild(this.hud)
-
-    // Hint card.
-    this.hint = el('div', 'hint')
-    this.hint.innerHTML = `
-      <strong>Cómo dibujar</strong><br>
-      Apunta con el índice y muévelo. Curva los otros dedos.<br>
-      <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> color ·
-      <kbd>D</kbd> modo · <kbd>G</kbd> guía ·
-      <kbd>T</kbd> figura · <kbd>C</kbd> limpiar
-    `
-    this.root.appendChild(this.hint)
-
     // Control bar.
     this.controls = el('div', 'controls hidden')
 
@@ -77,11 +52,10 @@ export class UI {
 
     this.controls.appendChild(el('div', 'sep'))
 
-    this.drawBtn = mkBtn('Gesto ☝️', () => this.h.onCycleDrawMode())
     this.guideBtn = mkBtn('Guía: off', () => this.h.onToggleGuide())
     this.templateBtn = mkBtn('Figura', () => this.h.onCycleTemplate())
     this.clearBtn = mkBtn('Limpiar', () => this.h.onClear())
-    this.controls.append(this.drawBtn, this.guideBtn, this.templateBtn, this.clearBtn)
+    this.controls.append(this.guideBtn, this.templateBtn, this.clearBtn)
 
     this.root.appendChild(this.controls)
   }
@@ -107,17 +81,8 @@ export class UI {
     this.overlay.append(h, p, btn)
   }
 
-  setStatus(text, kind = '') {
-    this.statusChip.textContent = text
-    this.statusChip.className = `chip ${kind}`
-  }
-
   setColorActive(index) {
     this.swatches.forEach((s, i) => s.classList.toggle('active', i === index))
-  }
-
-  setDrawMode(mode) {
-    this.drawBtn.textContent = DRAW_MODE_LABELS[mode] ?? mode
   }
 
   setGuide(visible, templateName) {
