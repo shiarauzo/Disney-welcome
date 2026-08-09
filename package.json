@@ -1,0 +1,28 @@
+{
+  "name": "disney-welcome",
+  "version": "1.0.0",
+  "description": "Draw glowing, sparkling trails in the air with your index finger — a WebGL + shaders fan homage to the classic TV channel wand bumper. 100% visual, runs in the browser.",
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "webgl",
+    "shaders",
+    "threejs",
+    "mediapipe",
+    "hand-tracking",
+    "creative-coding",
+    "generative-art"
+  ],
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
