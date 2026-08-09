@@ -1,15 +1,15 @@
-# ✨ Finger Sparkle
+# Finger Sparkle
 
 Dibuja en el aire con tu **dedo índice** y deja un rastro de luz neón con
 destellos que persiste unos segundos y se desvanece solo. Un homenaje _fan_ al
-clásico bumper de la varita mágica de la tele — pero hecho con tu dedo.
+clásico bumper de la varita mágica de la tele, pero hecho con tu dedo.
 
-**100% visual · 100% en el navegador · la cámara nunca sale de tu dispositivo.**
+**100% visual, 100% en el navegador, la cámara nunca sale de tu dispositivo.**
 
 Construido con **Three.js + WebGL + shaders GLSL** para el glow, y
 **MediaPipe Hands** para seguir la punta de tu dedo en tiempo real.
 
-> ⚠️ **Aviso:** proyecto artístico y educativo, homenaje _fan no oficial_. No
+> **Aviso:** proyecto artístico y educativo, homenaje _fan no oficial_. No
 > está afiliado, patrocinado ni respaldado por The Walt Disney Company, ni usa
 > sus logos, nombres, marcas ni recursos. Las guías de trazado son simples
 > contornos geométricos que tú dibujas con el dedo; tú eres responsable de lo
@@ -17,7 +17,7 @@ Construido con **Three.js + WebGL + shaders GLSL** para el glow, y
 
 ---
 
-## 🎬 Qué hace
+## Qué hace
 
 - Enciende la cámara y detecta la punta de tu **índice**.
 - Al **apuntar** con el índice, dibuja un trazo con **glow** que brilla y suelta
@@ -27,7 +27,7 @@ Construido con **Three.js + WebGL + shaders GLSL** para el glow, y
 - **Modo guía**: sigue una silueta tenue (orejas, estrella, corazón, flor o
   espiral) para "trazarla" con el dedo.
 
-## 🚀 Empezar
+## Empezar
 
 Requisitos: Node 18+ y un navegador de escritorio moderno con WebGL2 y cámara.
 
@@ -52,15 +52,15 @@ npm run preview    # sirve el build localmente
 > bloqueador o el modo offline impiden ese acceso, la app avisará con un mensaje
 > claro. El resto (Three.js, tu código) se sirve desde el propio sitio.
 
-## 🌐 Desplegar
+## Desplegar
 
 El repo trae `vercel.json` y el `base` de Vite por defecto es `/`, así que
 funciona en la **raíz** de un dominio.
 
 **Vercel (recomendado):**
-1. [vercel.com/new](https://vercel.com/new) → **Import Git Repository** →
+1. [vercel.com/new](https://vercel.com/new), **Import Git Repository**,
    `shiarauzo/Disney-welcome`.
-2. Framework: **Vite** (autodetectado) · Build: `npm run build` · Output: `dist`.
+2. Framework: **Vite** (autodetectado). Build: `npm run build`. Output: `dist`.
 3. **Deploy**. Vercel es HTTPS, así que la cámara funciona sin más.
 
 O con la CLI: `npm i -g vercel && vercel --prod`.
@@ -69,7 +69,7 @@ O con la CLI: `npm i -g vercel && vercel --prod`.
 construye con `BASE_PATH=/Disney-welcome/` y publica en cada push a `main`
 (activa Pages con *Source: GitHub Actions*).
 
-## 🎮 Controles
+## Controles
 
 | Acción | Ratón / Botón | Teclado |
 | --- | --- | --- |
@@ -78,16 +78,16 @@ construye con `BASE_PATH=/Disney-welcome/` y publica en cada push a `main`
 | Guía de trazado on/off | Botón "Guía" | `G` |
 | Cambiar figura de guía | Botón "Figura" | `T` |
 | Limpiar el lienzo | Botón "Limpiar" | `C` |
-| Dibujar (modo "Mantener") | — | mantén `Espacio` |
+| Dibujar (modo "Mantener") | Botón | mantén `Espacio` |
 
 **Modos de dibujo:**
-- **Gesto ☝️** (por defecto): dibuja solo cuando apuntas con el índice y curvas
+- **Gesto** (por defecto): dibuja solo cuando apuntas con el índice y curvas
   los demás dedos.
-- **Mantener ␣**: dibuja mientras mantienes la barra espaciadora (solo en
+- **Mantener**: dibuja mientras mantienes la barra espaciadora (solo en
   dispositivos con teclado; se oculta en pantallas táctiles).
 - **Siempre**: dibuja siempre que se detecte una mano.
 
-## 🧠 Cómo funciona (resumen)
+## Cómo funciona (resumen)
 
 ```
 Cámara ─► <video> ─┬─► textura de video ─────────────────┐
@@ -106,21 +106,21 @@ frame multiplica el frame anterior por un factor de decaimiento y suma los
 nuevos segmentos (dibujados como cápsulas con un _SDF_ en el fragment shader).
 Todos los detalles están en **[DESIGN.md](./DESIGN.md)**.
 
-## 🛠️ Stack
+## Stack
 
-- [Three.js](https://threejs.org/) — WebGL + render targets + shaders
-- [MediaPipe Tasks Vision](https://developers.google.com/mediapipe) — hand tracking
-- [Vite](https://vitejs.dev/) — dev server y build
+- [Three.js](https://threejs.org/): WebGL + render targets + shaders
+- [MediaPipe Tasks Vision](https://developers.google.com/mediapipe): hand tracking
+- [Vite](https://vitejs.dev/): dev server y build
 
-## 🤝 Contribuir
+## Contribuir
 
-¡Se aceptan PRs! Lee **[CONTRIBUTING.md](./CONTRIBUTING.md)** para el flujo de
+Se aceptan PRs. Lee **[CONTRIBUTING.md](./CONTRIBUTING.md)** para el flujo de
 trabajo y el estilo de código.
 
-## 📄 Licencia
+## Licencia
 
 **[AGPL-3.0-or-later](./LICENSE)**. Puedes ver, usar, modificar y compartir el
-código libremente, pero **cualquier trabajo derivado —incluido un servicio web—
+código libremente, pero **cualquier trabajo derivado (incluido un servicio web)
 debe publicar su código fuente bajo la misma licencia**. Así la gente puede
 colaborar sin que nadie se lleve el código a un producto cerrado.
 
