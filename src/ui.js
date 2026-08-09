@@ -26,12 +26,9 @@ export class UI {
     // Intro overlay.
     this.overlay = el('div', 'overlay')
     this.overlay.innerHTML = `
-      <h1>✨ Finger Sparkle</h1>
-      <p>Dibuja en el aire con tu <strong>dedo índice</strong> y deja un rastro
-         de luz con destellos que se desvanece solo. Todo pasa en tu navegador:
-         la cámara nunca sale de tu dispositivo.</p>
-      <button class="cta">Encender cámara ✨</button>
-      <p class="small">Necesita permiso de cámara · funciona mejor con buena luz</p>
+      <h1>Finger Sparkle</h1>
+      <p>Dibuja en el aire con el índice. La cámara no sale de tu dispositivo.</p>
+      <button class="cta">Encender cámara</button>
     `
     this.overlay.querySelector('.cta').addEventListener('click', () => this.h.onStart())
     this.root.appendChild(this.overlay)
