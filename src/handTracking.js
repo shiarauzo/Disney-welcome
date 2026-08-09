@@ -87,7 +87,13 @@ export class HandTracker {
     }
     this._lastVideoTime = video.currentTime
 
-    const result = this.landmarker.detectForVideo(video, nowMs)
+    // MediaPipe requires STRICTLY INCREASING timestamps or it throws. Coarsened
+    // clocks (privacy.resistFingerprinting, non-cross-origin-isolated) can
+    // repeat performance.now(), so force monotonicity.
+    const ts = Math.max(nowMs, (this._lastTs ?? -1) + 1)
+    this._lastTs = ts
+
+    const result = this.landmarker.detectForVideo(video, ts)
     const hands = result?.landmarks
     if (!hands || hands.length === 0) {
       this._last = { present: false, tip: null, pointing: false }
@@ -95,6 +101,11 @@ export class HandTracker {
     }
     const lm = hands[0]
     const tip = lm[INDEX_TIP]
+    // Reject non-finite landmarks so NaN can never reach the render pipeline.
+    if (!tip || !Number.isFinite(tip.x) || !Number.isFinite(tip.y)) {
+      this._last = { present: false, tip: null, pointing: false }
+      return this._last
+    }
     this._last = {
       present: true,
       tip: [tip.x, tip.y],

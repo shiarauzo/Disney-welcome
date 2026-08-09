@@ -25,8 +25,18 @@ export const CONFIG = {
   trail: {
     // Radius of the glowing stroke, in CSS pixels (scaled by DPR internally).
     radius: 26,
-    // Extra soft-halo multiplier around the solid core.
-    haloScale: 2.6,
+    // Extra soft-halo multiplier around the solid core (drives the quad margin).
+    haloScale: 3.0,
+    // 3-band "light" model: a white-hot core, a saturated hue ring and a wide
+    // soft halo. High coreGain pushes the HDR buffer well past 1.0 so the
+    // centerline blows out to white (reads as light, not paint).
+    coreGain: 6.0,
+    coreSharpness: 34.0,
+    innerGain: 1.6,
+    innerSharpness: 5.0,
+    outerGain: 0.7,
+    outerFalloff: 2.2,
+    intensity: 1.0,
     // Seconds the trail stays visible before it has faded to ~1.5%.
     // Exponential decay -> "persists a few seconds, then fades smoothly".
     persistSeconds: 3.0,
@@ -67,9 +77,15 @@ export const CONFIG = {
 
   // ---- Post ----------------------------------------------------------------
   bloom: {
-    strength: 1.35,
-    // Blur taps radius in px for the cheap separable-ish bloom.
-    radius: 3.0
+    strength: 1.3,
+    // Base ring radius (px); the composite stacks rings at 1x/3x/8x for a wide,
+    // soft, film-like halo.
+    radius: 4.0,
+    // Exposure into the ACES curve; higher = hotter cores roll to white.
+    exposure: 0.95,
+    // How much the wide halo darkens its surround (local contrast so the glow
+    // stays punchy over a bright camera image).
+    surroundDim: 0.35
   }
 }
 

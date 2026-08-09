@@ -46,11 +46,15 @@ export function coverTransform(canvasW, canvasH, videoW, videoH) {
  * cover scaling. Returns [x, y] in [-1, 1] with y up.
  */
 export function fingertipToClip(nx, ny, cover, mirror = true) {
+  if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null
   const { kx, ky, ox, oy } = cover
   // Invert the composite cover+mirror transform to find where on screen the
   // finger appears.
   const su = mirror ? (1 - nx - ox) / kx : (nx - ox) / kx
   const sv = (ny - oy) / ky
+  const cx = su * 2 - 1
+  const cy = 1 - sv * 2
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null
   // Screen UV (top-left) -> clip (center, y up).
-  return [su * 2 - 1, 1 - sv * 2]
+  return [cx, cy]
 }

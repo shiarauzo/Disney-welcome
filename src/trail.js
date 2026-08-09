@@ -32,7 +32,9 @@ export class TrailSampler {
    * @returns {{segments: {a:number[], b:number[]}[], tip: number[]|null}}
    */
   update(tip) {
-    if (!tip) {
+    // Treat a missing OR non-finite tip as pen-up. A NaN would otherwise make
+    // this.smooth sticky-NaN and emit poisoned segments forever.
+    if (!tip || !Number.isFinite(tip[0]) || !Number.isFinite(tip[1])) {
       this.reset()
       return { segments: [], tip: null }
     }
@@ -57,9 +59,9 @@ export class TrailSampler {
     const dist = Math.hypot(dx, dy)
 
     // Teleport rejection: a jump larger than ~half the viewport is a tracking
-    // glitch, not a stroke.
+    // glitch, not a stroke. (!isFinite guard is belt-and-suspenders.)
     const maxJump = 0.55 * Math.min(this.cssW, this.cssH)
-    if (dist > maxJump) {
+    if (!Number.isFinite(dist) || dist > maxJump) {
       this.last = [this.smooth[0], this.smooth[1]]
       return { segments: [], tip: this.smooth }
     }

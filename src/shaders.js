@@ -52,12 +52,15 @@ export const SEGMENT_FRAG = /* glsl */ `
   uniform vec2 uResolution;
   uniform vec3 uColor;
   uniform vec3 uGlowColor;
-  uniform float uCoreRadius;
   uniform float uGlowRadius;
-  uniform float uGlowFalloff;
   uniform float uCoreGain;
-  uniform float uGlowGain;
+  uniform float uInnerGain;
+  uniform float uOuterGain;
+  uniform float uCoreSharpness;
+  uniform float uInnerSharpness;
+  uniform float uOuterFalloff;
   uniform float uIntensity;
+  uniform float uTime;
 
   // Clip [-1,1] -> pixel coordinates.
   vec2 toPx(vec2 clip) { return (clip * 0.5 + 0.5) * uResolution; }
@@ -72,15 +75,20 @@ export const SEGMENT_FRAG = /* glsl */ `
   void main() {
     vec2 p = toPx(vClip);
     float d = segDist(p, toPx(vStart), toPx(vEnd));
+    float x = d / max(uGlowRadius, 1e-3); // distance in radius units
 
-    // Hot near-white core.
-    float core = smoothstep(uCoreRadius, 0.0, d);
-    // Soft exponential halo.
-    float halo = exp(-(d * d) / max(uGlowRadius * uGlowRadius / uGlowFalloff, 1e-4));
+    // Real light = white-hot core + saturated hue ring + wide soft halo.
+    float core  = exp(-x * x * uCoreSharpness);
+    float inner = exp(-x * x * uInnerSharpness);
+    float outer = exp(-x * uOuterFalloff);
 
-    vec3 col = uColor * (halo * uGlowGain);
-    col += mix(uColor, vec3(1.0), 0.7) * (core * uCoreGain);
-    gl_FragColor = vec4(col * uIntensity, 1.0);
+    vec3 col = vec3(1.0) * (core * uCoreGain);   // pure white core -> reads as light
+    col += uColor * (inner * uInnerGain);        // the hue
+    col += uGlowColor * (outer * uOuterGain);    // pale soft bleed
+
+    // Subtle temporal shimmer so the light "breathes" instead of sitting static.
+    float shimmer = 0.92 + 0.08 * sin(uTime * 20.0 + (vStart.x + vStart.y) * 40.0);
+    gl_FragColor = vec4(col * uIntensity * shimmer, 1.0);
   }
 `
 
@@ -100,6 +108,14 @@ export const FEEDBACK_FRAG = /* glsl */ `
   uniform float uFade;
   void main() {
     vec3 prev = texture2D(uPrev, vUv).rgb;
+    // Self-heal: a NaN texel would feedback forever (NaN * fade = NaN) and
+    // corrupt the trail permanently. x != x is true only for NaN (ES1-safe);
+    // clamp also tames any Inf. Combined with input sanitization this makes a
+    // poisoned buffer impossible.
+    if (prev.r != prev.r) prev.r = 0.0;
+    if (prev.g != prev.g) prev.g = 0.0;
+    if (prev.b != prev.b) prev.b = 0.0;
+    prev = clamp(prev, 0.0, 1000.0);
     gl_FragColor = vec4(prev * uFade, 1.0);
   }
 `
@@ -126,8 +142,30 @@ export const COMPOSITE_FRAG = /* glsl */ `
   uniform float uBloomStrength;
   uniform float uBloomRadius;
   uniform float uCamDim;
+  uniform float uGlowExposure;
+  uniform float uSurroundDim;
 
   vec3 sampleTrail(vec2 uv) { return texture2D(uTrail, uv).rgb; }
+
+  // One 8-tap ring at radius r, weighted.
+  vec3 bloomRing(float r, float w) {
+    vec3 s = vec3(0.0);
+    s += sampleTrail(vUv + uTexel * vec2( r, 0.0));
+    s += sampleTrail(vUv + uTexel * vec2(-r, 0.0));
+    s += sampleTrail(vUv + uTexel * vec2(0.0,  r));
+    s += sampleTrail(vUv + uTexel * vec2(0.0, -r));
+    s += sampleTrail(vUv + uTexel * vec2( r,  r) * 0.707);
+    s += sampleTrail(vUv + uTexel * vec2(-r,  r) * 0.707);
+    s += sampleTrail(vUv + uTexel * vec2( r, -r) * 0.707);
+    s += sampleTrail(vUv + uTexel * vec2(-r, -r) * 0.707);
+    return s * (w * 0.125);
+  }
+
+  // ACES filmic tone-map: rolls hot highlights toward white (light, not paint).
+  vec3 aces(vec3 x) {
+    const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+  }
 
   void main() {
     // Screen UV in top-left origin for the cover math.
@@ -138,26 +176,22 @@ export const COMPOSITE_FRAG = /* glsl */ `
 
     vec3 ink = sampleTrail(vUv);
 
-    // Cheap 8-tap ring bloom on the trail buffer.
-    vec3 bloom = vec3(0.0);
-    float r = uBloomRadius;
-    bloom += sampleTrail(vUv + uTexel * vec2( r, 0.0));
-    bloom += sampleTrail(vUv + uTexel * vec2(-r, 0.0));
-    bloom += sampleTrail(vUv + uTexel * vec2(0.0,  r));
-    bloom += sampleTrail(vUv + uTexel * vec2(0.0, -r));
-    bloom += sampleTrail(vUv + uTexel * vec2( r,  r) * 0.707);
-    bloom += sampleTrail(vUv + uTexel * vec2(-r,  r) * 0.707);
-    bloom += sampleTrail(vUv + uTexel * vec2( r, -r) * 0.707);
-    bloom += sampleTrail(vUv + uTexel * vec2(-r, -r) * 0.707);
-    bloom *= (1.0 / 8.0) * uBloomStrength;
+    // Multi-scale bloom: three rings (tight + medium + wide) for a soft,
+    // film-like halo instead of a single hard ring.
+    vec3 bloom = bloomRing(uBloomRadius, 0.5);
+    bloom += bloomRing(uBloomRadius * 3.0, 0.32);
+    bloom += bloomRing(uBloomRadius * 8.0, 0.18);
+    bloom *= uBloomStrength;
 
-    // Tone-map ONLY the (HDR, additive) glow so hot cores don't clip, while
-    // leaving the SDR camera image at its natural brightness.
     vec3 glow = ink + bloom;
-    vec3 glowMapped = glow / (glow + vec3(1.0));
-    glowMapped = pow(glowMapped, vec3(0.85));
+    vec3 glowMapped = aces(glow * uGlowExposure);
 
-    vec3 outc = cam * uCamDim + glowMapped;
+    // Real bloom appears to darken its surround -> local contrast so the glow
+    // stays punchy even over a bright camera image (no hard vignette).
+    float haloLum = dot(bloom, vec3(0.299, 0.587, 0.114));
+    float dim = 1.0 - uSurroundDim * clamp(haloLum, 0.0, 1.0);
+
+    vec3 outc = cam * uCamDim * dim + glowMapped;
     gl_FragColor = vec4(outc, 1.0);
   }
 `
@@ -188,7 +222,9 @@ export const SPARKLE_VERT = /* glsl */ `
     vAlpha = smoothstep(0.0, 0.12, t) * (1.0 - t) * (1.0 - t);
     vSeed = aSeed;
     float twinkle = 0.6 + 0.4 * sin(uTime * (6.0 + aSeed * 10.0) + aSeed * 42.0);
-    gl_PointSize = aSize * uPixelRatio * (0.6 + 0.7 * twinkle) * (vAlpha > 0.0 ? 1.0 : 0.0);
+    // A few rare "hero" sparkles are larger, so the field doesn't look uniform.
+    float hero = step(0.9, fract(aSeed * 13.0));
+    gl_PointSize = aSize * uPixelRatio * (0.6 + 0.7 * twinkle) * (1.0 + hero) * (vAlpha > 0.0 ? 1.0 : 0.0);
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `
@@ -210,12 +246,15 @@ export const SPARKLE_FRAG = /* glsl */ `
     float dist = length(uv);
     // Round soft glow.
     float glow = exp(-dist * dist * 4.0);
-    // Star spikes (horizontal + vertical + diagonals).
+    // Star spikes with per-particle length so the field isn't uniform.
+    float spikeLen = mix(3.0, 9.0, fract(vSeed * 7.0));
     float spikes = 0.0;
-    spikes += pow(max(0.0, 1.0 - abs(uv.x) * 6.0), 2.0) * max(0.0, 1.0 - abs(uv.y));
-    spikes += pow(max(0.0, 1.0 - abs(uv.y) * 6.0), 2.0) * max(0.0, 1.0 - abs(uv.x));
-    float core = smoothstep(0.35, 0.0, dist);
-    vec3 col = uGlowColor * (glow * 0.6 + spikes * 0.9) + vec3(1.0) * core * 0.8;
+    spikes += pow(max(0.0, 1.0 - abs(uv.x) * spikeLen), 2.0) * max(0.0, 1.0 - abs(uv.y));
+    spikes += pow(max(0.0, 1.0 - abs(uv.y) * spikeLen), 2.0) * max(0.0, 1.0 - abs(uv.x));
+    // Hot white center; magic dust is closer to white-gold than a flat hue.
+    float core = smoothstep(0.18, 0.0, dist);
+    vec3 tint = mix(uGlowColor, vec3(1.0), 0.5);
+    vec3 col = tint * (glow * 0.5 + spikes * 0.9) + vec3(1.0) * core * 0.9;
     gl_FragColor = vec4(col * vAlpha, 1.0);
   }
 `

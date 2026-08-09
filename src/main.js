@@ -74,6 +74,10 @@ class App {
   /* ---- lifecycle --------------------------------------------------------- */
 
   async start() {
+    // Guard against double-start (e.g. rapid clicks): two rAF loops would run
+    // forever and fight over the shared buffers.
+    if (this.running || this._starting) return
+    this._starting = true
     try {
       this.ui.setStatus('Encendiendo cámara…')
       await startCamera(this.video)
@@ -100,6 +104,8 @@ class App {
       requestAnimationFrame((t) => this._loop(t))
     } catch (err) {
       this._handleFatal(err)
+    } finally {
+      this._starting = false
     }
   }
 
@@ -144,6 +150,9 @@ class App {
   cycleDrawMode() {
     const idx = this.drawModes.indexOf(this.drawMode)
     this.drawMode = this.drawModes[(idx + 1) % this.drawModes.length]
+    // Reset hysteresis so the new mode's threshold starts clean.
+    this._downFrames = 0
+    this._upFrames = 0
     this.ui.setDrawMode(this.drawMode)
   }
 
@@ -204,6 +213,19 @@ class App {
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space') this.spaceHeld = false
     })
+    // Releasing Space over another window drops the keyup, which would stick the
+    // pen down forever in "held" mode. Reset on focus loss / tab hide.
+    const releasePen = () => {
+      this.spaceHeld = false
+      this._downFrames = 0
+    }
+    window.addEventListener('blur', releasePen)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) releasePen()
+    })
+    // Recompute the cover mapping if the camera renegotiates its resolution
+    // (adaptive downscale, device switch) without a window resize.
+    this.video.addEventListener('resize', () => this._recomputeCover())
   }
 
   _scheduleResize() {
@@ -263,36 +285,48 @@ class App {
 
   _loop(now) {
     if (!this.running) return
-    const dt = Math.min((now - this._lastT) / 1000, 0.1)
-    this._lastT = now
+    try {
+      const dt = Math.min((now - this._lastT) / 1000, 0.1)
+      this._lastT = now
 
-    // Cover can change once the first video frame arrives.
-    if (this.cover.kx === 1 && this.cover.ky === 1 && this.video.videoWidth > 0) {
-      this._recomputeCover()
+      // Cover can change once the first video frame arrives.
+      if (this.cover.kx === 1 && this.cover.ky === 1 && this.video.videoWidth > 0) {
+        this._recomputeCover()
+      }
+
+      const hand = this.tracker.detect(this.video, now)
+      const isDown = this._computePenDown(hand)
+
+      let tipClip = null
+      if (isDown && hand.tip) {
+        tipClip = fingertipToClip(hand.tip[0], hand.tip[1], this.cover, this.mirror)
+      }
+
+      const { segments, tip } = this.sampler.update(tipClip)
+      this.pipeline.setSegments(segments)
+
+      // Emit sparkles along accepted samples (fewer if reduced-motion).
+      if (segments.length > 0 && tip) {
+        this.sparkles.spawn(tip[0], tip[1], this.reducedMotion ? 1 : undefined)
+      }
+
+      this.sparkles.update(dt, now / 1000)
+      this.guide.update(dt, !this.reducedMotion)
+      this.pipeline.render(dt)
+
+      this._updateHud(dt, hand, isDown)
+      this._errorStreak = 0
+    } catch (err) {
+      // A single bad frame must NEVER kill the loop (it re-arms in finally).
+      this._errorStreak = (this._errorStreak || 0) + 1
+      // eslint-disable-next-line no-console
+      console.error('frame error', err)
+      if (this._errorStreak === 30) {
+        this.ui.setStatus('Recuperando…', 'warn')
+      }
+    } finally {
+      if (this.running) requestAnimationFrame((t) => this._loop(t))
     }
-
-    const hand = this.tracker.detect(this.video, now)
-    const isDown = this._computePenDown(hand)
-
-    let tipClip = null
-    if (isDown && hand.tip) {
-      tipClip = fingertipToClip(hand.tip[0], hand.tip[1], this.cover, this.mirror)
-    }
-
-    const { segments, tip } = this.sampler.update(tipClip)
-    this.pipeline.setSegments(segments)
-
-    // Emit sparkles along accepted samples (fewer if reduced-motion).
-    if (segments.length > 0 && tip) {
-      this.sparkles.spawn(tip[0], tip[1], this.reducedMotion ? 1 : undefined)
-    }
-
-    this.sparkles.update(dt, now / 1000)
-    this.guide.update(dt, !this.reducedMotion)
-    this.pipeline.render(dt)
-
-    this._updateHud(dt, hand, isDown)
-    requestAnimationFrame((t) => this._loop(t))
   }
 
   _updateHud(dt, hand, isDown) {
