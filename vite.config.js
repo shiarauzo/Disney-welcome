@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 
-// The `base` path lets the built app work when served from a GitHub Pages
-// project subpath (https://<user>.github.io/Disney-welcome/). Override it with
-// the BASE_PATH env var if you fork under a different repo name.
-const base = process.env.BASE_PATH ?? '/Disney-welcome/'
+// Default base is '/' so the app works at a domain root (Vercel, Netlify, local
+// dev). GitHub Pages serves from a project subpath, so its workflow sets
+// BASE_PATH=/Disney-welcome/ to override this.
+const base = process.env.BASE_PATH ?? '/'
 
 export default defineConfig({
   base,
