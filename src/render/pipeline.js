@@ -38,6 +38,7 @@ export class RenderPipeline {
 
     this.camera = new THREE.Camera() // identity; shaders emit clip space directly
     this.overlays = [] // extra Object3D drawn over the composite (sparkles, guide)
+    this._time = 0
 
     this._initSegmentPass()
     this._initFullscreenPasses()
@@ -82,12 +83,15 @@ export class RenderPipeline {
         uResolution: { value: new THREE.Vector2(1, 1) },
         uColor: { value: new THREE.Color(1, 1, 1) },
         uGlowColor: { value: new THREE.Color(1, 1, 1) },
-        uCoreRadius: { value: 3.0 },
         uGlowRadius: { value: CONFIG.trail.radius },
-        uGlowFalloff: { value: 2.5 },
-        uCoreGain: { value: 1.4 },
-        uGlowGain: { value: 1.1 },
-        uIntensity: { value: 1.0 }
+        uCoreGain: { value: CONFIG.trail.coreGain },
+        uInnerGain: { value: CONFIG.trail.innerGain },
+        uOuterGain: { value: CONFIG.trail.outerGain },
+        uCoreSharpness: { value: CONFIG.trail.coreSharpness },
+        uInnerSharpness: { value: CONFIG.trail.innerSharpness },
+        uOuterFalloff: { value: CONFIG.trail.outerFalloff },
+        uIntensity: { value: CONFIG.trail.intensity },
+        uTime: { value: 0 }
       }
     })
     const segMesh = new THREE.Mesh(this._segGeo, this.segMaterial)
@@ -127,7 +131,9 @@ export class RenderPipeline {
         uMirror: { value: 1.0 },
         uBloomStrength: { value: CONFIG.bloom.strength },
         uBloomRadius: { value: CONFIG.bloom.radius },
-        uCamDim: { value: 0.82 }
+        uCamDim: { value: 0.9 },
+        uGlowExposure: { value: CONFIG.bloom.exposure },
+        uSurroundDim: { value: CONFIG.bloom.surroundDim }
       }
     })
     const compositeQuad = new THREE.Mesh(quad, this.compositeMaterial)
@@ -143,7 +149,6 @@ export class RenderPipeline {
     this.segMaterial.uniforms.uResolution.value.set(dw, dh)
     this.compositeMaterial.uniforms.uTexel.value.set(1 / dw, 1 / dh)
     this.segMaterial.uniforms.uGlowRadius.value = CONFIG.trail.radius * this.pixelRatio
-    this.segMaterial.uniforms.uCoreRadius.value = 3.0 * this.pixelRatio
   }
 
   /* ---- public API -------------------------------------------------------- */
@@ -183,15 +188,24 @@ export class RenderPipeline {
     const mx = (2 * marginPx) / size.x
     const my = (2 * marginPx) / size.y
 
-    const count = Math.min(segments.length, MAX_SEGMENTS)
-    for (let i = 0; i < count; i++) {
+    const max = Math.min(segments.length, MAX_SEGMENTS)
+    let count = 0
+    for (let i = 0; i < max; i++) {
       const { a, b } = segments[i]
+      // Skip any non-finite segment so a bad coordinate can never reach the
+      // accumulation buffer (a NaN there would feed back forever).
+      if (
+        !Number.isFinite(a[0]) || !Number.isFinite(a[1]) ||
+        !Number.isFinite(b[0]) || !Number.isFinite(b[1])
+      ) {
+        continue
+      }
       const x0 = Math.min(a[0], b[0]) - mx
       const x1 = Math.max(a[0], b[0]) + mx
       const y0 = Math.min(a[1], b[1]) - my
       const y1 = Math.max(a[1], b[1]) + my
-      const p = i * 12
-      const s = i * 8
+      const p = count * 12
+      const s = count * 8
       // 4 corners: (x0,y0) (x1,y0) (x1,y1) (x0,y1)
       const xs = [x0, x1, x1, x0]
       const ys = [y0, y0, y1, y1]
@@ -204,10 +218,13 @@ export class RenderPipeline {
         this._segEnd[s + c * 2] = b[0]
         this._segEnd[s + c * 2 + 1] = b[1]
       }
+      count++
     }
-    this._segGeo.attributes.position.needsUpdate = true
-    this._segGeo.attributes.aStart.needsUpdate = true
-    this._segGeo.attributes.aEnd.needsUpdate = true
+    if (count > 0) {
+      this._segGeo.attributes.position.needsUpdate = true
+      this._segGeo.attributes.aStart.needsUpdate = true
+      this._segGeo.attributes.aEnd.needsUpdate = true
+    }
     this._segGeo.setDrawRange(0, count * 6)
     this._segCount = count
   }
@@ -218,8 +235,11 @@ export class RenderPipeline {
     this.renderer.setPixelRatio(this.pixelRatio)
     this.renderer.setSize(width, height, false)
 
-    const dw = Math.max(2, Math.floor(width * this.pixelRatio))
-    const dh = Math.max(2, Math.floor(height * this.pixelRatio))
+    // Clamp to the GPU's max texture size so extreme (ultrawide / spanned)
+    // windows can't request an over-large render target and go black.
+    const cap = this.renderer.capabilities.maxTextureSize || 4096
+    const dw = Math.min(cap, Math.max(2, Math.floor(width * this.pixelRatio)))
+    const dh = Math.min(cap, Math.max(2, Math.floor(height * this.pixelRatio)))
     if (!this.feedback) {
       this.feedback = new FeedbackTarget(this.renderer, dw, dh)
     } else {
@@ -246,9 +266,14 @@ export class RenderPipeline {
   render(dt) {
     const r = this.renderer
 
+    // Clamp dt to a sane, finite range so a NaN/huge dt can't poison uFade.
+    const safeDt = Number.isFinite(dt) ? Math.min(Math.max(dt, 0), 0.1) : 0.016
+    this._time += safeDt
+    this.segMaterial.uniforms.uTime.value = this._time
+
     // 1. Feedback decay: prev * fade -> write.
     const persist = Math.max(CONFIG.trail.persistSeconds, 0.05)
-    const fade = Math.pow(0.015, Math.min(dt, 0.1) / persist)
+    const fade = Math.pow(0.015, safeDt / persist)
     this.feedbackMaterial.uniforms.uFade.value = fade
     this.feedbackMaterial.uniforms.uPrev.value = this.feedback.read.texture
     r.setRenderTarget(this.feedback.write)
