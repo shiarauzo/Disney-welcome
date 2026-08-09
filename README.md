@@ -52,6 +52,23 @@ npm run preview    # sirve el build localmente
 > bloqueador o el modo offline impiden ese acceso, la app avisará con un mensaje
 > claro. El resto (Three.js, tu código) se sirve desde el propio sitio.
 
+## 🌐 Desplegar
+
+El repo trae `vercel.json` y el `base` de Vite por defecto es `/`, así que
+funciona en la **raíz** de un dominio.
+
+**Vercel (recomendado):**
+1. [vercel.com/new](https://vercel.com/new) → **Import Git Repository** →
+   `shiarauzo/Disney-welcome`.
+2. Framework: **Vite** (autodetectado) · Build: `npm run build` · Output: `dist`.
+3. **Deploy**. Vercel es HTTPS, así que la cámara funciona sin más.
+
+O con la CLI: `npm i -g vercel && vercel --prod`.
+
+**GitHub Pages:** ya hay un workflow (`.github/workflows/deploy.yml`) que
+construye con `BASE_PATH=/Disney-welcome/` y publica en cada push a `main`
+(activa Pages con *Source: GitHub Actions*).
+
 ## 🎮 Controles
 
 | Acción | Ratón / Botón | Teclado |
