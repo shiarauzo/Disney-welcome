@@ -43,8 +43,27 @@ export const CONFIG = {
     // Minimum distance (px) the fingertip must move before we add a new
     // sample. Filters jitter and avoids over-dense geometry.
     minSampleDistance: 2.5,
-    // Smoothing factor for the fingertip (0 = raw, 1 = frozen).
-    smoothing: 0.45
+    // Speed-adaptive smoothing: the "keep previous" weight (0 = raw, 1 =
+    // frozen), authored per 60 fps frame and rescaled to the real frame time.
+    // Heavy when the finger is nearly still (kills jitter), almost none when
+    // it's moving fast — otherwise the smoothed point lags behind and the end
+    // of a quick stroke never gets drawn.
+    smoothing: 0.6,
+    smoothingFast: 0.08,
+    // Fingertip speeds (px/s) that map onto those two weights.
+    slowSpeed: 120,
+    fastSpeed: 1400,
+    // A jump bigger than this fraction of the viewport DIAGONAL is treated as a
+    // tracking glitch instead of a stroke. Generous on purpose: detections
+    // arrive at ~30 fps, so a real flick covers a lot of ground between two of
+    // them, and clipping that is what breaks fast strokes into pieces.
+    maxJumpFraction: 0.85,
+    // Curve interpolation. Detections arrive at ~30 fps, so a fast stroke
+    // would otherwise be drawn as straight chords between samples and quick
+    // curves look faceted. Each span is subdivided into roughly one
+    // sub-segment per `curveStepPx`, capped at `maxCurveSteps`.
+    curveStepPx: 10,
+    maxCurveSteps: 24
   },
 
   // ---- Sparkles (shimmer particles) ----------------------------------------
@@ -66,7 +85,31 @@ export const CONFIG = {
     // MediaPipe detection confidence thresholds.
     minDetectionConfidence: 0.5,
     minPresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5
+    minTrackingConfidence: 0.5,
+    // Seconds to coast on the last good landmarks when a frame loses the hand.
+    // Motion blur makes the detector lose a fast-moving hand for several frames
+    // in a row, so this has to outlast a flick: when tracking comes back the
+    // sampler still has its previous point and bridges the gap, instead of
+    // having reset and leaving a hole exactly where the stroke was fastest.
+    holdSeconds: 0.35,
+    // Above this fingertip speed (fractions of the image per second) the curl
+    // classification is not trustworthy — blur smears the fingers together — so
+    // the pointing gesture holds rather than dropping out mid-flick.
+    blurSpeed: 0.7,
+    // How long the gesture must agree before the pen goes down / comes back up.
+    // In SECONDS, not frames: rAF runs at 60-120 Hz while the camera only
+    // yields new detections at ~30 fps, so a frame count means different things
+    // on different displays. Asymmetric on purpose: quick to start drawing,
+    // slow to lift, so a misread frame mid-stroke doesn't break the line.
+    penDownSeconds: 0.05,
+    penUpSeconds: 0.3,
+    // Schmitt trigger on the "pointing" score (index extension minus the median
+    // extension of the other three fingers). Turning ON needs a clear point;
+    // staying on is much cheaper, so the gesture doesn't flicker mid-stroke.
+    // Lower `pointOn` if pointing isn't detected; raise it if it triggers with
+    // an open hand.
+    pointOn: 0.2,
+    pointOff: 0.08
   },
 
   // ---- Trace guide (the "draw the ears" homage) ----------------------------

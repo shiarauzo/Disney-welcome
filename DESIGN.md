@@ -26,7 +26,7 @@ getUserMedia ─► <video> (oculto) ─┬─► THREE.VideoTexture ───�
                                           │ punto en clip space          │
                                           ▼                              │
                                    TrailSampler (trail.js)               │
-                                     suaviza + samplea → segmentos       │
+                                     suaviza + samplea + interpola       │
                         ┌──────────────────┴───────────┐                │
                         ▼                               ▼                ▼
                   SparkleSystem                  RenderPipeline (render/pipeline.js)
@@ -98,13 +98,42 @@ En `handTracking.js#isPointing`, sobre los 21 landmarks de MediaPipe:
   dist(pip, wrist)`; se exigen ≥2 de 3 para tolerar ruido.
 - `isDown = índiceExtendido && otrosCurvados`.
 
-En `main.js#_computePenDown` se añade **histéresis** (N frames para activar/
-desactivar) y **modos**: `gesture` (por defecto), `held` (barra espaciadora) y
-`always`. Sin mano detectada → siempre pen-up.
+El gesto no es un booleano sino un **score continuo** (`pointingScore`:
+extensión del índice menos la mediana de los otros tres dedos) con **disparador
+Schmitt** (`pointOn` / `pointOff`). Un booleano se caía en cuanto una punta
+doblada leía un pelo más lejos de lo debido.
 
-Suavizado del dedo: exponencial en `trail.js` (`CONFIG.trail.smoothing`), más
-rechazo de "teletransportes" (saltos de tracking) y descarte del último punto en
-pen-up para no dibujar una línea puente.
+El score se calcula sobre los **`worldLandmarks` 3D** (métricos, centrados en la
+mano), no sobre los landmarks proyectados. Apuntando **hacia la cámara** la
+proyección 2D del índice se acorta hasta parecerse a la de un dedo doblado, y un
+score 2D lee "no apunta" justo en la forma más natural de trazar una recta hacia
+adelante. La posición de la punta sí sale de los landmarks proyectados, que es
+lo que necesita el mapeo a pantalla.
+
+En `main.js#_computePenDown` se añade **histéresis asimétrica en segundos**
+(`penDownSeconds` / `penUpSeconds`) y **modos**: `gesture` (por defecto), `held`
+(barra espaciadora) y `always`. En segundos y no en frames a propósito: rAF corre
+a 60-120 Hz mientras las detecciones llegan a ~30 fps, así que contar frames
+significa cosas distintas según la pantalla. Si un frame pierde la mano,
+`HandTracker` **navega por inercia** sobre los últimos landmarks buenos durante
+`holdSeconds` antes de declarar pen-up; sin eso, un fallo de un frame reseteaba
+el sampler y partía el trazo.
+
+Suavizado del dedo (`trail.js`): exponencial **adaptativo a la velocidad**, que
+interpola entre `smoothing` (quieto, mata el jitter) y `smoothingFast` (rápido,
+sin lag), elevado a `dt * 60` para ser independiente del framerate. Un peso fijo
+obliga a elegir entre jitter parado y lag en movimiento.
+
+Entre dos muestras aceptadas no se dibuja una cuerda recta sino una **curva
+Catmull-Rom subdividida** (`_curveTo`), en sub-segmentos de ~`curveStepPx`. A
+~30 fps de detección un trazo rápido recorre mucho terreno entre muestras y las
+cuerdas rectas se ven facetadas. La tangente final es unilateral (aún no existe
+la muestra siguiente) para no añadir un frame de latencia.
+
+Queda el rechazo de "teletransportes", pero medido contra la **diagonal** del
+viewport y con umbral alto (`maxJumpFraction`): descartar un segmento deja un
+agujero visible, así que solo debe cazar un landmark disparado a la nada, nunca
+un movimiento rápido real.
 
 ## 6. Shaders
 
@@ -150,7 +179,10 @@ está activa; el pulso se desactiva con `prefers-reduced-motion`.
 | Sin mano detectada | pen-up forzado; el rastro sigue decayendo; chip "Muestra tu mano". |
 | FPS bajo | DPR ≤ 2; delegado GPU en MediaPipe; coste de render constante. |
 | Sin soporte float | `FeedbackTarget` detecta la extensión y cae a `UnsignedByte`. |
-| Jitter del dedo / parpadeo del gesto | suavizado + histéresis de N frames. |
+| Jitter del dedo | suavizado adaptativo a la velocidad. |
+| Parpadeo del gesto | score continuo + Schmitt + histéresis asimétrica en segundos. |
+| Mano perdida un frame suelto | inercia sobre los últimos landmarks (`holdSeconds`). |
+| Trazo rápido facetado | interpolación Catmull-Rom entre muestras. |
 | Timestamp duplicado en MediaPipe | se salta el frame si `video.currentTime` no avanzó. |
 | Sin WebGL | overlay de error en el arranque. |
 
@@ -163,7 +195,7 @@ src/
   camera.js          getUserMedia + errores tipados
   handTracking.js    HandLandmarker + gesto "apuntar"
   coords.js          mapeo cover/espejo/clip (única fuente de verdad)
-  trail.js           suavizado + muestreo → segmentos
+  trail.js           suavizado + muestreo + curva → segmentos
   sparkles.js        sistema de partículas (chispas)
   templates.js       guías de trazado (orejas/estrella/corazón)
   shaders.js         todo el GLSL

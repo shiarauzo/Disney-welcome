@@ -32,7 +32,12 @@ export async function startCamera(video) {
       video: {
         facingMode: 'user',
         width: { ideal: 1280 },
-        height: { ideal: 720 }
+        height: { ideal: 720 },
+        // Detections can't arrive faster than the camera delivers frames, and
+        // a longer exposure per frame is what smears the fingers during a quick
+        // stroke — the exact moment hand tracking drops out. Ask for 60; it's
+        // an `ideal`, so a 30 fps webcam simply keeps what it had.
+        frameRate: { ideal: 60 }
       }
     })
   } catch (err) {
@@ -54,6 +59,14 @@ export async function startCamera(video) {
     await video.play()
   } catch {
     /* autoplay policies: the muted+autoplay attributes usually cover this */
+  }
+
+  if (import.meta.env.DEV) {
+    const s = stream.getVideoTracks()[0]?.getSettings?.()
+    // What we asked for and what we got are often different things, and the
+    // real frame rate is the ceiling on how fast a stroke can be tracked.
+    // eslint-disable-next-line no-console
+    console.info('[camera]', s?.width, 'x', s?.height, '@', s?.frameRate, 'fps')
   }
 
   return video
