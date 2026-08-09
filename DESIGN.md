@@ -176,7 +176,7 @@ está activa; el pulso se desactiva con `prefers-reduced-motion`.
 | --- | --- |
 | Carga de WASM + modelo `.task` | Estado "Cargando…"; se hace `await` antes del bucle. Modelo desde CDN de MediaPipe. |
 | Permiso de cámara denegado / sin cámara / origen inseguro | `CameraError` tipado → overlay accionable. |
-| Sin mano detectada | pen-up forzado; el rastro sigue decayendo; chip "Muestra tu mano". |
+| Sin mano detectada | pen-up forzado; el rastro sigue decayendo. |
 | FPS bajo | DPR ≤ 2; delegado GPU en MediaPipe; coste de render constante. |
 | Sin soporte float | `FeedbackTarget` detecta la extensión y cae a `UnsignedByte`. |
 | Jitter del dedo | suavizado adaptativo a la velocidad. |
@@ -199,7 +199,7 @@ src/
   sparkles.js        sistema de partículas (chispas)
   templates.js       guías de trazado (orejas/estrella/corazón)
   shaders.js         todo el GLSL
-  ui.js              overlay, barra de controles, HUD
+  ui.js              overlay de intro/error + barra de controles
   style.css          estilos de la UI
   render/
     pipeline.js      orquesta las pasadas (feedback→draw→composite→overlays)
