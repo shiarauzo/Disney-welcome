@@ -24,7 +24,7 @@ export const CONFIG = {
   // ---- Trail (glow line) ----------------------------------------------------
   trail: {
     // Radius of the glowing stroke, in CSS pixels (scaled by DPR internally).
-    radius: 26,
+    radius: 20,
     // Extra soft-halo multiplier around the solid core (drives the quad margin).
     haloScale: 3.0,
     // 3-band "light" model: a white-hot core, a saturated hue ring and a wide
@@ -38,8 +38,9 @@ export const CONFIG = {
     outerFalloff: 2.2,
     intensity: 1.0,
     // Seconds the trail stays visible before it has faded to ~1.5%.
-    // Exponential decay -> "persists a few seconds, then fades smoothly".
-    persistSeconds: 3.0,
+    // Exponential decay -> most of the stroke reads bright for a good while,
+    // then fades out smoothly rather than being cut off.
+    persistSeconds: 9.0,
     // Minimum distance (px) the fingertip must move before we add a new
     // sample. Filters jitter and avoids over-dense geometry.
     minSampleDistance: 2.5,
