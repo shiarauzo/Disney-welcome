@@ -10,3 +10,4 @@ yarn-error.log*
 
 # Dev-only scratch harnesses (not part of the product)
 __*.html
+.vercel
